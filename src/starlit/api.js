@@ -56,7 +56,7 @@ export class Api extends FrankerFaceZ.utilities.module.Module {
 			const json = await response.json();
 			const rows = Array.isArray(json?.data) ? json.data : [];
 			this.badgeCatalog = rows
-				.map(r => ({ id: r.id, title: r.name, rarity: r.rarity ?? null, urls: badgeUrls(r.data?.image_url) }))
+				.map(r => ({ id: r.id, title: r.name, rarity: r.rarity ?? null, urls: badgeUrls(r.data?.image_url), origin: r.origin ?? null }))
 				.filter(b => b.urls);
 		} catch (err) {
 			this.log.error('Could not load the Starlit badge list', err);

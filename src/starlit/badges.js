@@ -35,12 +35,11 @@ export class Badges extends FrankerFaceZ.utilities.module.Module {
 	load(badge, slot) {
 		const id = this.badgeId(badge.id);
 		if (this.known.has(id)) return id;
-		const rarity = badge.rarity ? badge.rarity.charAt(0).toUpperCase() + badge.rarity.slice(1) : null;
 		this.badges.loadBadgeData(id, {
 			id,
 			name: badge.title,
 			title: badge.title,
-			tooltipExtra: () => `\n${rarity ? `${rarity} · ` : ''}Starlit badge`,
+			tooltipExtra: () => this.parent.starlit_chromas.badgeExtra(badge),
 			click_url: 'https://starlit.gg',
 			image: badge.urls[1],
 			urls: { 1: badge.urls[1], 2: badge.urls[2], 4: badge.urls[4] },

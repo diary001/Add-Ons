@@ -42,24 +42,74 @@ export class Chromas extends FrankerFaceZ.utilities.module.Module {
 	onEnable() {
 		this.chat.addTokenizer(this.tokenizer);
 
-		this.resolve('tooltips').define('starlit-chroma', target => {
-			const id = target?.dataset?.starlitChroma;
-			const chroma = id ? this.chromaById(id) : null;
-			if (!chroma) return FrankerFaceZ.utilities.tooltip.NoContent;
-			return createElement('div', { className: 'starlit-chroma-tip' }, [
-				createElement('div', { className: `starlit-chroma-tip__name ${CLASS}`, [PROP]: chroma.id }, chroma.name),
-				createElement('div', { className: 'starlit-chroma-tip__chips' }, [
-					this.rarityChip(chroma.rarity),
-					createElement('span', { className: 'starlit-chip starlit-chip--type' }, 'Chroma'),
-					chroma.animated ? createElement('span', { className: 'starlit-chip starlit-chip--animated' }, 'Animated') : null,
-				]),
-			]);
+		this.resolve('tooltips').define('starlit-chroma', target => this.chromaTip(target));
+		this.wrapTooltips();
+		this.on('addons:addon-enabled', id => {
+			if (id === '7tv-emotes') this.wrapTooltips();
 		});
 
 		this.settings.getChanges(SETTING_KEYS.chromas, () => this.updateChatLines());
 		this.settings.getChanges(SETTING_KEYS.chromaAnimations, () => this.rebuild());
 		this.settings.getChanges(SETTING_KEYS.overSevenTv, () => this.rebuild());
 		this.on('..api:update', () => this.rebuild());
+	}
+
+	chromaIdOf(target) {
+		const fromProp = target?.dataset?.starlitChroma;
+		if (fromProp) return fromProp;
+		for (const name of target?.classList ?? []) {
+			if (name.startsWith(`${CLASS}--`)) return name.slice(CLASS.length + 2);
+		}
+		return null;
+	}
+
+	chromaTip(target) {
+		const id = this.chromaIdOf(target);
+		const chroma = id ? this.chromaById(id) : null;
+		if (!chroma) return FrankerFaceZ.utilities.tooltip.NoContent;
+		return createElement('div', { className: 'starlit-tip' }, [
+			createElement('div', { className: `starlit-tip__name ${CLASS} ${CLASS}--${chroma.id}`, [PROP]: chroma.id }, chroma.name),
+			createElement('div', { className: 'starlit-tip__chips' }, [
+				this.rarityChip(chroma.rarity),
+				createElement('span', { className: 'starlit-chip starlit-chip--type' }, 'Chroma'),
+				chroma.animated ? createElement('span', { className: 'starlit-chip starlit-chip--animated' }, 'Animated') : null,
+			]),
+			chroma.origin ? createElement('div', { className: 'starlit-tip__from' }, chroma.origin) : null,
+		]);
+	}
+
+	badgeExtra(badge) {
+		const origin = badge.origin ?? this.badgeOrigin(badge.id);
+		return createElement('div', { className: 'starlit-tip starlit-tip--badge' }, [
+			createElement('div', { className: 'starlit-tip__chips' }, [
+				this.rarityChip(badge.rarity),
+				createElement('span', { className: 'starlit-chip starlit-chip--type starlit-chip--badge' }, 'Badge'),
+			]),
+			origin ? createElement('div', { className: 'starlit-tip__from' }, origin) : null,
+		]);
+	}
+
+	badgeOrigin(id) {
+		const api = this.parent.starlit_api;
+		const listed = api.badgeCatalog.find(b => b.id === id);
+		if (listed?.origin) return listed.origin;
+		for (const user of api.users.values()) {
+			const worn = (user.badges ?? []).find(b => b.id === id);
+			if (worn?.origin) return worn.origin;
+		}
+		return null;
+	}
+
+	wrapTooltips() {
+		const tooltips = this.resolve('tooltips');
+		const paint = tooltips?.types?.['seventv-paint'];
+		if (!paint || paint.starlit) return;
+		const wrapped = (target, tip) => {
+			const ours = this.chromaIdOf(target) && this.settings.get(SETTING_KEYS.overSevenTv);
+			return ours ? this.chromaTip(target) : paint(target, tip);
+		};
+		wrapped.starlit = true;
+		tooltips.define('seventv-paint', wrapped);
 	}
 
 	rarityChip(rarity) {
@@ -96,7 +146,11 @@ export class Chromas extends FrankerFaceZ.utilities.module.Module {
 
 	tag(msg, id) {
 		msg.ffz_user_class = (msg.ffz_user_class || new Set());
+		for (const name of [...msg.ffz_user_class]) {
+			if (name.startsWith(`${CLASS}--`) && name !== `${CLASS}--${id}`) msg.ffz_user_class.delete(name);
+		}
 		msg.ffz_user_class.add(CLASS);
+		msg.ffz_user_class.add(`${CLASS}--${id}`);
 		msg.ffz_user_class.add('ffz-tooltip');
 		msg.ffz_user_class.add('ffz-tooltip--no-mouse');
 		msg.ffz_user_props = {
@@ -109,6 +163,9 @@ export class Chromas extends FrankerFaceZ.utilities.module.Module {
 	untag(msg) {
 		if (!msg.ffz_user_class) return;
 		msg.ffz_user_class.delete(CLASS);
+		for (const name of [...msg.ffz_user_class]) {
+			if (name.startsWith(`${CLASS}--`)) msg.ffz_user_class.delete(name);
+		}
 		if (msg.ffz_user_props?.[PROP]) {
 			delete msg.ffz_user_props[PROP];
 			if (msg.ffz_user_props['data-tooltip-type'] === 'starlit-chroma') {
@@ -158,9 +215,12 @@ export class Chromas extends FrankerFaceZ.utilities.module.Module {
 			api.keyframes,
 			`.${CLASS} { -webkit-text-fill-color: transparent${important ? ' !important' : ''}; background-clip: text !important; -webkit-background-clip: text !important; }`,
 			`.${CLASS} > .chat-author__intl-login { opacity: 1; }`,
-			'.starlit-chroma-tip { display: flex; flex-direction: column; gap: 0.35em; }',
-			'.starlit-chroma-tip__name { font-weight: 800; font-size: 1.25em; line-height: 1.15; display: inline-block; }',
-			'.starlit-chroma-tip__chips { display: flex; gap: 0.35em; align-items: center; flex-wrap: wrap; }',
+			'.starlit-tip { display: flex; flex-direction: column; gap: 0.4em; }',
+			'.starlit-tip--badge { margin-top: 0.4em; }',
+			'.starlit-tip__from { font-size: 0.8em; opacity: 0.75; padding-top: 0.4em; border-top: 1px solid rgba(255,255,255,0.15); }',
+			'.starlit-tip__name { font-weight: 800; font-size: 1.25em; line-height: 1.15; display: inline-block; }',
+			'.starlit-tip__chips { display: flex; gap: 0.35em; align-items: center; flex-wrap: wrap; }',
+			'.starlit-chip--badge { background-color: #4fb6ff26; border: 1px solid #4fb6ff59; color: #bcd8ff; }',
 			'.starlit-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.25; }',
 			'.starlit-chip--type { background-color: #b69dff26; border: 1px solid #b69dff59; color: #cdbcff; }',
 			'.starlit-chip--animated { background-color: #aef0ff26; border: 1px solid #aef0ff59; color: #aef0ff; }',
@@ -171,7 +231,7 @@ export class Chromas extends FrankerFaceZ.utilities.module.Module {
 			'@media (prefers-reduced-motion: reduce) { .starlit-rarity-text--secret, .starlit-rarity-text--exclusive { animation: none !important; } }',
 		];
 		for (const [id, css] of seen) {
-			rules.push(`.${CLASS}[${PROP}="${id}"] { ${this.paintRule(still ? this.stillRule(css) : css, important)} }`);
+			rules.push(`.${CLASS}.${CLASS}--${id} { ${this.paintRule(still ? this.stillRule(css) : css, important)} }`);
 		}
 		this.rules = seen;
 		this.getSheet().textContent = rules.join('\n');
