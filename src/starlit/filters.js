@@ -18,7 +18,8 @@ import { SETTING_KEYS } from './settings.js';
 const OFFICIAL_LOGINS = ['starlitgg', 'starlitgg_dev', 'starlitgg_staging'];
 const CATCH_COMMAND = /^!\s*(fish|hunt|dig|beg|search)\b/i;
 const COMMAND = /^!\S/;
-const CATCH_REPLY = /\b(fish|fishing|cast|reel|reeled|catch|hunt|hunting|bagged|game|dig|digging|dug|beg|begging|pity|search|searched)\b/i;
+// The two whiff lines with no catch verb count too, so hiding catches hides a failed attempt.
+const CATCH_REPLY = /\b(fish|fishing|cast|reel|reeled|catch|hunt|hunting|bagged|game|dig|digging|dug|beg|begging|pity|search|searched)\b|\bthe woods were empty\b|\bnobody gave you anything\b/i;
 
 export function classifyLine(login, text) {
 	const t = (text || '').trim();
